@@ -173,3 +173,53 @@ func (e Ellipse) Path(o *op.Ops) PathSpec {
 	ellipse.shape = ops.Ellipse
 	return ellipse
 }
+
+// Squircle represents some squircle I found online
+type Squircle struct {
+	Side float32
+}
+
+// Op returns the op for the filled squircle.
+func (s Squircle) Op(ops *op.Ops) Op {
+	return Outline{Path: s.Path(ops)}.Op()
+}
+
+// Push the filled squircle clip op on the clip stack.
+func (s Squircle) Push(ops *op.Ops) Stack {
+	return s.Op(ops).Push(ops)
+}
+
+// Path constructs a path for the squircle.
+func (s Squircle) Path(o *op.Ops) PathSpec {
+	if s.Side == 0 {
+		return PathSpec{shape: ops.Rect}
+	}
+
+	var p Path
+	p.Begin(o)
+	p.MoveTo(f32.Pt(0, 0.5*s.Side))
+	p.CubeTo(
+		f32.Pt(0, 0.0575*s.Side),
+		f32.Pt(0.0575*s.Side, 0),
+		f32.Pt(0.5*s.Side, 0),
+	)
+	p.CubeTo(
+		f32.Pt(0.9425*s.Side, 0),
+		f32.Pt(1*s.Side, 0.0575*s.Side),
+		f32.Pt(1*s.Side, 0.5*s.Side),
+	)
+	p.CubeTo(
+		f32.Pt(1*s.Side, 0.9425*s.Side),
+		f32.Pt(0.9425*s.Side, 1*s.Side),
+		f32.Pt(0.5*s.Side, 1*s.Side),
+	)
+	p.CubeTo(
+		f32.Pt(0.0575*s.Side, 1*s.Side),
+		f32.Pt(0, 0.9425*s.Side),
+		f32.Pt(0, 0.5*s.Side),
+	)
+
+	squircle := p.End()
+
+	return squircle
+}

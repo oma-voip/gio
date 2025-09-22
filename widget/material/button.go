@@ -29,6 +29,7 @@ type ButtonStyle struct {
 	CornerRadius unit.Dp
 	Inset        layout.Inset
 	Button       *widget.Clickable
+	Squircle     bool
 	shaper       *text.Shaper
 }
 
@@ -36,6 +37,7 @@ type ButtonLayoutStyle struct {
 	Background   color.NRGBA
 	CornerRadius unit.Dp
 	Button       *widget.Clickable
+	Squircle     bool
 }
 
 type IconButtonStyle struct {
@@ -114,6 +116,7 @@ func (b ButtonStyle) Layout(gtx layout.Context) layout.Dimensions {
 		Background:   b.Background,
 		CornerRadius: b.CornerRadius,
 		Button:       b.Button,
+		Squircle:     b.Squircle,
 	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return b.Inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			colMacro := op.Record(gtx.Ops)
@@ -130,7 +133,13 @@ func (b ButtonLayoutStyle) Layout(gtx layout.Context, w layout.Widget) layout.Di
 		return layout.Background{}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
 				rr := gtx.Dp(b.CornerRadius)
-				defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, rr).Push(gtx.Ops).Pop()
+
+				if b.Squircle {
+					defer clip.Squircle{Side: float32(gtx.Constraints.Min.X)}.Push(gtx.Ops).Pop()
+				} else {
+					defer clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, rr).Push(gtx.Ops).Pop()
+				}
+
 				background := b.Background
 				switch {
 				case !gtx.Enabled():
