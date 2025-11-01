@@ -550,7 +550,6 @@ func (e *Editor) command(gtx layout.Context, k key.Event) (EditorEvent, bool) {
 		case key.NameEnd:
 			e.text.MoveTextEnd(selAct)
 		}
-		return nil, false
 	}
 	switch k.Name {
 	case key.NameReturn, key.NameEnter:
