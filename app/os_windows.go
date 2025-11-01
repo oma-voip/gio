@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Unlicense OR MIT
 
+//go:build windows
+// +build windows
+
 package app
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
@@ -30,6 +34,9 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/io/transfer"
 )
+
+// #include "os_windows.h"
+import "C"
 
 type Win32ViewEvent struct {
 	HWND uintptr
@@ -682,22 +689,90 @@ func (w *window) readClipboard() error {
 		return err
 	}
 	defer windows.CloseClipboard()
-	mem, err := windows.GetClipboardData(windows.CF_UNICODETEXT)
-	if err != nil {
-		return err
+
+	formats := []uint32{
+		windows.CF_UNICODETEXT,
+		windows.CF_DIB,
+		windows.CF_HDROP,
 	}
+
+	found := false
+
+	var format uint32
+	var mem syscall.Handle
+	var err error
+
+	for _, format = range formats {
+		if windows.IsClipboardFormatAvailable(format) {
+			mem, err = windows.GetClipboardData(format)
+			if err != nil {
+				return err
+			}
+
+			found = true
+
+			break
+		}
+	}
+
+	if !found {
+		return nil
+	}
+
 	ptr, err := windows.GlobalLock(mem)
 	if err != nil {
 		return err
 	}
 	defer windows.GlobalUnlock(mem)
-	content := gowindows.UTF16PtrToString((*uint16)(unsafe.Pointer(ptr)))
-	w.ProcessEvent(transfer.DataEvent{
-		Type: "application/text",
-		Open: func() io.ReadCloser {
-			return io.NopCloser(strings.NewReader(content))
-		},
-	})
+
+	switch format {
+	case windows.CF_UNICODETEXT:
+		content := gowindows.UTF16PtrToString((*uint16)(unsafe.Pointer(ptr)))
+		w.ProcessEvent(transfer.DataEvent{
+			Type: "application/text",
+			Open: func() io.ReadCloser {
+				return io.NopCloser(strings.NewReader(content))
+			},
+		})
+	case windows.CF_DIB:
+		buf := C.MakeBMPFromDIB(ptr)
+		if buf.bytes == nil || buf.length == 0 {
+			return nil
+		}
+		defer C.free(unsafe.Pointer(buf.bytes))
+
+		bmp := C.GoBytes(unsafe.Pointer(buf.bytes), C.int(buf.length))
+
+		w.ProcessEvent(transfer.DataEvent{
+			Type: "image/bmp",
+			Open: func() io.ReadCloser {
+				return io.NopCloser(bytes.NewBuffer(bmp))
+			},
+		})
+	case windows.CF_HDROP:
+		pl := C.GetDropFilePaths(ptr)
+		defer C.FreePathList(&pl)
+	
+		n := int(pl.count)
+		if n == 0 || pl.paths == nil {
+			return nil
+		}
+
+		cArr := unsafe.Slice(pl.paths, n)
+
+		paths := make([]string, n)
+		for i, cstr := range cArr {
+			paths[i] = C.GoString(cstr)
+		}
+		
+		w.ProcessEvent(transfer.DataEvent{
+			Type: "text/file-list",
+			Open: func() io.ReadCloser {
+				return io.NopCloser(strings.NewReader(strings.Join(paths, "\n")))
+			},
+		})
+	}
+
 	return nil
 }
 

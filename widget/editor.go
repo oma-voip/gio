@@ -182,6 +182,12 @@ type SubmitEvent struct {
 // Editor.SelectedText() (which can be empty).
 type SelectEvent struct{}
 
+// A PasteFileEvent is generated when the user pastes a file instead of text.
+type PasteFileEvent struct{
+	Type string
+	Body []byte
+}
+
 const (
 	blinksPerSecond  = 1
 	maxBlinkDuration = 10 * time.Second
@@ -365,6 +371,12 @@ func (e *Editor) processKey(gtx layout.Context) (EditorEvent, bool) {
 	filters := []event.Filter{
 		key.FocusFilter{Target: e},
 		transfer.TargetFilter{Target: e, Type: "application/text"},
+		transfer.TargetFilter{Target: e, Type: "image/png"},
+		transfer.TargetFilter{Target: e, Type: "image/jpg"},
+		transfer.TargetFilter{Target: e, Type: "image/jpeg"},
+		transfer.TargetFilter{Target: e, Type: "image/bmp"},
+		transfer.TargetFilter{Target: e, Type: "text/uri-list"},
+		transfer.TargetFilter{Target: e, Type: "text/file-list"},
 		key.Filter{Focus: e, Name: key.NameEnter, Optional: key.ModShift},
 		key.Filter{Focus: e, Name: key.NameReturn, Optional: key.ModShift},
 
@@ -460,10 +472,19 @@ func (e *Editor) processKey(gtx layout.Context) (EditorEvent, bool) {
 			e.scrollCaret = true
 			e.scroller.Stop()
 			content, err := io.ReadAll(ke.Open())
-			if err == nil {
+			if err != nil {
+				break
+			}
+
+			if ke.Type == "application/text" {
 				if e.Insert(string(content)) != 0 {
 					return ChangeEvent{}, true
 				}
+			} else {
+				return PasteFileEvent{
+					Type: ke.Type,
+					Body: content,
+				}, true
 			}
 		case key.SelectionEvent:
 			e.scrollCaret = true
@@ -1114,3 +1135,4 @@ func sign(n int) int {
 func (s ChangeEvent) isEditorEvent() {}
 func (s SubmitEvent) isEditorEvent() {}
 func (s SelectEvent) isEditorEvent() {}
+func (s PasteFileEvent) isEditorEvent() {}

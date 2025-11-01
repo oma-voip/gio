@@ -387,7 +387,9 @@ const (
 
 	GHND = 0x0042
 
+	CF_DIB         = 8
 	CF_UNICODETEXT = 13
+	CF_HDROP       = 15
 	IMAGE_BITMAP   = 0
 	IMAGE_ICON     = 1
 	IMAGE_CURSOR   = 2
@@ -435,6 +437,7 @@ var (
 	_GetWindowLong               = user32.NewProc("GetWindowLongPtrW")
 	_GetWindowLong32             = user32.NewProc("GetWindowLongW")
 	_GetWindowPlacement          = user32.NewProc("GetWindowPlacement")
+	_IsClipboardFormatAvailable  = user32.NewProc("IsClipboardFormatAvailable")
 	_KillTimer                   = user32.NewProc("KillTimer")
 	_LoadCursor                  = user32.NewProc("LoadCursorW")
 	_LoadImage                   = user32.NewProc("LoadImageW")
@@ -744,6 +747,12 @@ func ImmSetCandidateWindow(imc syscall.Handle, x, y int) {
 		},
 	}
 	_ImmSetCandidateWindow.Call(uintptr(imc), uintptr(unsafe.Pointer(&f)))
+}
+
+func IsClipboardFormatAvailable(format uint32) bool {
+	r, _, _ := _IsClipboardFormatAvailable.Call(uintptr(format))
+
+	return r == 1
 }
 
 func SetWindowLong(hwnd syscall.Handle, idx uintptr, style uintptr) {
