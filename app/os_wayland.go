@@ -244,7 +244,10 @@ var callbackMap sync.Map
 
 // clipboardMimeTypes is a list of supported clipboard mime types, in
 // order of preference.
-var clipboardMimeTypes = []string{"text/plain;charset=utf8", "UTF8_STRING", "text/plain", "TEXT", "STRING", "image/png", "image/jpeg", "image/jpg", "text/uri-list"}
+var clipboardMimeTypes = []string{"text/plain;charset=utf8", "UTF8_STRING", "text/plain", "TEXT", "STRING"}
+var readOnlyClipboardTypes = []string{"image/png", "image/jpeg", "image/jpg", "text/uri-list"}
+
+var readMimeTypes = append(clipboardMimeTypes, readOnlyClipboardTypes...)
 
 var (
 	newWaylandEGLContext    func(w *window) (context, error)
@@ -752,7 +755,7 @@ func gio_onDataDeviceSelection(data unsafe.Pointer, dataDev *C.struct_wl_data_de
 	defer s.flushOffers()
 	s.clipboard = nil
 loop:
-	for _, want := range clipboardMimeTypes {
+	for _, want := range readMimeTypes {
 		for _, got := range s.offers[id] {
 			if want != got {
 				continue
@@ -1021,24 +1024,32 @@ func (w *window) ReadClipboard() {
 	}
 	w.disp.readClipClose = make(chan struct{})
 	r, mimeType, err := w.disp.readClipboard()
-	if r == nil || err != nil {
-		return
-	}
 	// Don't let slow clipboard transfers block event loop.
 	go func() {
-		defer r.Close()
-		data, _ := io.ReadAll(r)
+		var e transfer.DataEvent
+		if r == nil || err != nil {
+			// send an empty event, otherwise the tag becomes forever blocked.
+			e = transfer.DataEvent{
+				Type: "application/text",
+				Open: func() io.ReadCloser {
+					return io.NopCloser(bytes.NewReader(nil))
+				},
+			}
+		} else {
+			defer r.Close()
+			data, _ := io.ReadAll(r)
 
-		_type := "application/text"
-		if strings.HasPrefix(mimeType, "image/") || mimeType == "text/uri-list" {
-			_type = mimeType
-		}
+			_type := "application/text"
+			if strings.HasPrefix(mimeType, "image/") || mimeType == "text/uri-list" {
+				_type = mimeType
+			}
 
-		e := transfer.DataEvent{
-			Type: _type,
-			Open: func() io.ReadCloser {
-				return io.NopCloser(bytes.NewReader(data))
-			},
+			e = transfer.DataEvent{
+				Type: _type,
+				Open: func() io.ReadCloser {
+					return io.NopCloser(bytes.NewReader(data))
+				},
+			}
 		}
 		select {
 		case w.clipReads <- e:
