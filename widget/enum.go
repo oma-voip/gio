@@ -40,11 +40,26 @@ func (e *Enum) index(k string) *enumKey {
 }
 
 // Update the state and report whether Value has changed by user interaction.
-func (e *Enum) Update(gtx layout.Context) bool {
+func (e *Enum) Changed(gtx layout.Context) bool {
+	_, changed := e.Update(gtx)
+
+	return changed
+}
+
+// Update the state and report whether any of the keys were clicked.
+func (e *Enum) Clicked(gtx layout.Context) bool {
+	clicked, _ := e.Update(gtx)
+
+	return clicked
+}
+
+// Update the state and report whether whether any of the keys were clicked and whether Value has changed.
+func (e *Enum) Update(gtx layout.Context) (bool, bool) {
 	if !gtx.Enabled() {
 		e.focused = false
 	}
 	e.hovering = false
+	clicked := false
 	changed := false
 	for _, state := range e.keys {
 		for {
@@ -58,6 +73,8 @@ func (e *Enum) Update(gtx layout.Context) bool {
 					gtx.Execute(key.FocusCmd{Tag: &state.tag})
 				}
 			case gesture.KindClick:
+				clicked = true
+
 				if state.key != e.Value {
 					e.Value = state.key
 					changed = true
@@ -100,7 +117,7 @@ func (e *Enum) Update(gtx layout.Context) bool {
 		}
 	}
 
-	return changed
+	return clicked, changed
 }
 
 // Hovered returns the key that is highlighted, or false if none are.
